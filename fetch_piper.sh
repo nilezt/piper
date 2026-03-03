@@ -84,5 +84,14 @@ if [ ! -f "$meta_file" ]; then
     curl -L -o "$meta_file" "$MODEL_JSON_URL"
 fi
 
+# Ensure mosquitto client library is installed (for MQTT support)
+if command -v apt-get >/dev/null; then
+    echo "Checking for libmosquitto-dev..."
+    if ! dpkg -s libmosquitto-dev >/dev/null 2>&1; then
+        echo "Installing libmosquitto-dev..."
+        sudo apt-get update && sudo apt-get install -y libmosquitto-dev
+    fi
+fi
+
 echo "model files are saved as $model_file and $meta_file";
 
