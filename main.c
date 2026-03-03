@@ -1,55 +1,28 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
+#include "piper_tts/tts.h"
 
 int main(int argc, char *argv[]) {
+    if (tts_init() != 0) {
+        return 1;
+    }
+
     char text[1024];
-    printf("Enter text: ");
-    if (fgets(text, sizeof(text), stdin) == NULL) return 1;
-    text[strcspn(text, "\r\n")] = 0;
+    while (1) {
+        printf("\nEnter text (or 'exit' to quit): ");
+        if (fgets(text, sizeof(text), stdin) == NULL) break;
+        text[strcspn(text, "\r\n")] = 0;
 
-    // DEFINED PATHS BASED ON YOUR WORKSPACE
-    const char *piper_executable = "./piper.bin";
-    const char *library_path     = "./piper";
-    const char *espeak_data      = "./piper/espeak-ng-data";
-    const char *model            = "en_US-amy-low.onnx";
+        if (strcmp(text, "exit") == 0) break;
+        if (strlen(text) == 0) continue;
 
-    // 1. Ensure the binary is executable
-    chmod(piper_executable, 0755);
-
-    // 2. Check if the model exists (very important for sound!)
-    if (access(model, R_OK) != 0) {
-        fprintf(stderr, "Error: Model '%s' not found in current folder.\n", model);
-        return 1;
+        printf("Generating 'output.wav'...\n");
+        if (tts_generate(text, "output.wav") != 0) {
+            fprintf(stderr, "Failed to generate TTS.\n");
+        }
     }
 
-    // 3. Build the command
-    // We tell Linux to look in ./piper for libraries, then run ./piper.bin
-    char cmd[2048];
-    snprintf(cmd, sizeof(cmd),
-             "LD_LIBRARY_PATH=%s %s --espeak_data %s -m %s -f output.wav",
-             library_path, piper_executable, espeak_data, model);
-
-    printf("Executing Piper...\n");
-
-    // 4. Open the pipe and send text
-    FILE *fp = popen(cmd, "w");
-    if (!fp) {
-        perror("popen failed");
-        return 1;
-    }
-
-    fprintf(fp, "%s", text);
-    
-    // 5. pclose() waits for the audio to finish rendering
-    int status = pclose(fp);
-
-    if (status == 0) {
-        printf("\nSuccess! 'output.wav' is ready.\n");
-    } else {
-        printf("\nError: Piper exited with code %d.\n", status);
-    }
-
+    tts_free();
     return 0;
 }
