@@ -1,5 +1,6 @@
 #include "mqtt_client.h"
 #include "../piper_tts/tts.h"
+#include "../cJSON/cJSON.h"
 #include <mosquitto.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,20 +23,36 @@ void on_message(struct mosquitto *m, void *obj, const struct mosquitto_message *
     (void)m;
     (void)obj;
     if (msg->payloadlen > 0) {
-        char *text = malloc(msg->payloadlen + 1);
-        memcpy(text, msg->payload, msg->payloadlen);
-        text[msg->payloadlen] = '\0';
+        char *payload = malloc(msg->payloadlen + 1);
+        memcpy(payload, msg->payload, msg->payloadlen);
+        payload[msg->payloadlen] = '\0';
         
-        printf("MQTT: Received message on topic %s: %s\n", msg->topic, text);
+        printf("MQTT: Received message on topic %s: %s\n", msg->topic, payload);
         
+        char *text_to_speak = NULL;
+        cJSON *json = cJSON_Parse(payload);
+        if (json) {
+            cJSON *text_item = cJSON_GetObjectItemCaseSensitive(json, "text");
+            if (cJSON_IsString(text_item) && (text_item->valuestring != NULL)) {
+                text_to_speak = strdup(text_item->valuestring);
+            }
+            cJSON_Delete(json);
+        }
+
+        // Fallback: if not JSON or no "text" field, speak the raw payload
+        if (!text_to_speak) {
+            text_to_speak = strdup(payload);
+        }
+
         // Generate TTS
-        if (tts_generate(text, "output.wav") == 0) {
+        if (tts_generate(text_to_speak, "output.wav") == 0) {
             mqtt_manager_publish("TTS generation started for received message.");
         } else {
             mqtt_manager_publish("TTS generation failed.");
         }
         
-        free(text);
+        free(text_to_speak);
+        free(payload);
     }
 }
 
